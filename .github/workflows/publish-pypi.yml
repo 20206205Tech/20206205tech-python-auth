@@ -1,0 +1,101 @@
+name: Publish PyPI package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Setup uv thay vì Node.js
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      # Thay thế `npm ci`
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Fetch secrets from Doppler
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v1.2.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-project: 20206205tech
+          doppler-config: prod
+
+      # Chạy test và tạo báo cáo coverage (Yêu cầu pytest và pytest-cov)
+      - name: Test and Coverage
+        run: uv run pytest --cov=. --cov-report=xml
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ steps.doppler.outputs.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          fail_ci_if_error: true
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: unit-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Cho phép tạo Git Tag và GitHub Release
+      packages: write
+      issues: write
+      pull-requests: write
+      id-token: write # Cần thiết nếu bạn dùng Trusted Publisher của PyPI
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Fetch secrets from Doppler
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v1.2.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-project: 20206205tech
+          doppler-config: prod
+
+      # Sử dụng Python Semantic Release thay vì npx semantic-release
+      - name: Python Semantic Release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Thay thế `npm run build`
+      - name: Build project
+        if: steps.release.outputs.released == 'true'
+        run: uv build
+
+      # Thay thế bước publish của NPM sang PyPI
+      - name: Publish to PyPI
+        if: steps.release.outputs.released == 'true'
+        env:
+          # Đảm bảo bạn đã cấu hình PYPI_TOKEN trên Doppler
+          UV_PUBLISH_TOKEN: ${{ steps.doppler.outputs.PYPI_TOKEN }}
+        run: uv publish
