@@ -7,3 +7,5 @@ class CurrentUser(BaseModel):
     user_id: str
     email: Optional[str] = None
     role: str
+    aal: Optional[str] = None
+    amr: Optional[list[dict]] = None

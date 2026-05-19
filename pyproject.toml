@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.115.8",
     "pydantic>=2.10.6",
     "PyJWT[crypto]>=2.10.1",
+    "environs>=15.0.1",
 ]
 
 [dependency-groups]

@@ -14,11 +14,22 @@ def get_current_user(
     token = credentials.credentials
     payload = verify_token(token)
 
+    aal = payload.get("aal")
+    if aal != "aal2":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden - Multi-factor authentication required",
+        )
+
     app_metadata = payload.get("app_metadata", {})
     role = app_metadata.get("role") or payload.get("role")
 
     return CurrentUser(
-        user_id=payload.get("sub"), email=payload.get("email"), role=role
+        user_id=payload.get("sub"),
+        email=payload.get("email"),
+        role=role,
+        aal=aal,
+        amr=payload.get("amr"),
     )
 
 
